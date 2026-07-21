@@ -1,0 +1,13 @@
+"""
+MPAP Version Information
+"""
+
+MPAP_VERSION = "2.0.0-alpha"
+
+DECODER_VERSION = "0.0.0"
+
+ANALYSIS_VERSION = "0.0.0"
+
+CLASSIFIER_VERSION = "0.0.0"
+
+LAYER_DETECTOR_VERSION = "0.0.0"
