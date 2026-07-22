@@ -3,14 +3,21 @@
 MPAP
 
 Bounding Box Model
+
+Represents an axis-aligned bounding box in image coordinates.
 ===============================================================================
 """
 
 from dataclasses import dataclass
 
+from .point import Point
+
 
 @dataclass(frozen=True, slots=True)
 class BoundingBox:
+    """
+    Represents a rectangular region in image coordinates.
+    """
 
     x: int
     y: int
@@ -20,12 +27,29 @@ class BoundingBox:
 
     @property
     def area(self) -> int:
+        """Bounding box area in pixels."""
         return self.width * self.height
 
     @property
-    def center_x(self) -> float:
-        return self.x + self.width / 2
+    def center(self) -> Point:
+        """Return the center of the bounding box."""
+        return Point(
+            self.x + self.width / 2,
+            self.y + self.height / 2,
+        )
 
     @property
-    def center_y(self) -> float:
-        return self.y + self.height / 2
+    def left(self) -> int:
+        return self.x
+
+    @property
+    def right(self) -> int:
+        return self.x + self.width
+
+    @property
+    def top(self) -> int:
+        return self.y
+
+    @property
+    def bottom(self) -> int:
+        return self.y + self.height

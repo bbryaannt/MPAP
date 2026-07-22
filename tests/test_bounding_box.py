@@ -1,4 +1,4 @@
-from models.bounding_box import BoundingBox
+from models import BoundingBox
 
 
 def main():
@@ -11,12 +11,14 @@ def main():
     )
 
     print(box)
-
     print()
 
     print("Area:", box.area)
-
-    print("Center:", box.center_x, box.center_y)
+    print("Center:", box.center)
+    print("Left:", box.left)
+    print("Right:", box.right)
+    print("Top:", box.top)
+    print("Bottom:", box.bottom)
 
 
 if __name__ == "__main__":
