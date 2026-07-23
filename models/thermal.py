@@ -26,4 +26,4 @@ class Thermal:
         """
         Difference between the hottest pixel and the threshold.
         """
-        return self.max_intensity - self.threshold
+        return self.max_intensity - self.threshold  
