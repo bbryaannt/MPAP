@@ -10,3 +10,5 @@ from .layer_statistics import LayerStatistics
 from .layer import Layer
 from .build import Build
 from .analysis_run import AnalysisRun
+from .decoded_image import DecodedImage
+from .header import Header
