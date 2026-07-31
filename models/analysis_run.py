@@ -80,3 +80,5 @@ class AnalysisRun:
             f"measured_frames={self.measured_frame_count}"
             ")"
         )
+
+   
