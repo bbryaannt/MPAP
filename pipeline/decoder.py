@@ -77,13 +77,16 @@ class RPM222XRDecoder:
         """
         Read only the file header.
         """
+
         return self._read_header(Path(path))
 
     def validate(self, path: str | Path) -> bool:
         """
         Validate that a file has a readable header.
         """
+
         self._read_header(Path(path))
+
         return True
 
     def _detect_schema(self, path: Path) -> int:
@@ -92,14 +95,17 @@ class RPM222XRDecoder:
         """
 
         with path.open("rb") as file:
+
             first_two = file.read(2)
 
         if len(first_two) != 2:
+
             raise CorruptFileError(
                 f"{path.name} is too small to contain a valid RPM222XR file."
             )
 
         if first_two == b"\x00\x00":
+
             return SCHEMA_1
 
         return SCHEMA_0
@@ -119,9 +125,12 @@ class RPM222XRDecoder:
 
             if schema == SCHEMA_0:
 
-                raw_header = file.read(SCHEMA_0_HEADER_SIZE)
+                raw_header = file.read(
+                    SCHEMA_0_HEADER_SIZE
+                )
 
                 if len(raw_header) != SCHEMA_0_HEADER_SIZE:
+
                     raise CorruptFileError(
                         f"{path.name} has an incomplete Schema 0 header."
                     )
@@ -132,6 +141,7 @@ class RPM222XRDecoder:
                 )
 
                 header_size = SCHEMA_0_HEADER_SIZE
+
                 header_length_words = None
 
             # ==========================================================
@@ -140,9 +150,12 @@ class RPM222XRDecoder:
 
             elif schema == SCHEMA_1:
 
-                fixed_header = file.read(SCHEMA_1_MIN_HEADER_BYTES)
+                fixed_header = file.read(
+                    SCHEMA_1_MIN_HEADER_BYTES
+                )
 
                 if len(fixed_header) != SCHEMA_1_MIN_HEADER_BYTES:
+
                     raise CorruptFileError(
                         f"{path.name} has an incomplete Schema 1 header."
                     )
@@ -164,11 +177,18 @@ class RPM222XRDecoder:
 
                 header_size = header_length_words * 4
 
-                remaining = header_size - SCHEMA_1_MIN_HEADER_BYTES
+                remaining = (
+                    header_size
+                    - SCHEMA_1_MIN_HEADER_BYTES
+                )
 
-                raw_header = fixed_header + file.read(remaining)
+                raw_header = (
+                    fixed_header
+                    + file.read(remaining)
+                )
 
                 if len(raw_header) != header_size:
+
                     raise CorruptFileError(
                         f"{path.name} has an incomplete Schema 1 header."
                     )
@@ -186,6 +206,7 @@ class RPM222XRDecoder:
         # ==============================================================
 
         if bit_depth not in SUPPORTED_BIT_DEPTHS:
+
             raise UnsupportedBitDepthError(
                 f"Unsupported bit depth: {bit_depth}"
             )
@@ -235,10 +256,16 @@ class RPM222XRDecoder:
         image = image[:header.pixel_count]
 
         image = image.reshape(
-            (header.height, header.width)
+            (
+                header.height,
+                header.width,
+            )
         )
 
-        image = image.astype(np.uint16) * 257
+        image = (
+            image.astype(np.uint16)
+            * 257
+        )
 
         return image
 
@@ -258,18 +285,40 @@ class RPM222XRDecoder:
             dtype=np.uint8,
         )
 
-        usable_bytes = (len(raw) // 3) * 3
+        usable_bytes = (
+            len(raw) // 3
+        ) * 3
 
         raw = raw[:usable_bytes]
 
-        triples = raw.reshape(-1, 3)
+        triples = raw.reshape(
+            -1,
+            3,
+        )
 
-        b0 = triples[:, 0].astype(np.uint16)
-        b1 = triples[:, 1].astype(np.uint16)
-        b2 = triples[:, 2].astype(np.uint16)
+        b0 = triples[:, 0].astype(
+            np.uint16
+        )
 
-        p1 = (b0 << 4) | (b1 & 0x0F)
-        p2 = (b2 << 4) | ((b1 >> 4) & 0x0F)
+        b1 = triples[:, 1].astype(
+            np.uint16
+        )
+
+        b2 = triples[:, 2].astype(
+            np.uint16
+        )
+
+        p1 = (
+            b0 << 4
+        ) | (
+            b1 & 0x0F
+        )
+
+        p2 = (
+            b2 << 4
+        ) | (
+            (b1 >> 4) & 0x0F
+        )
 
         decoded = np.empty(
             p1.size * 2,
@@ -277,16 +326,23 @@ class RPM222XRDecoder:
         )
 
         decoded[0::2] = p1
+
         decoded[1::2] = p2
 
-        decoded = decoded[:header.pixel_count]
+        decoded = decoded[
+            :header.pixel_count
+        ]
 
         image = decoded.reshape(
-            (header.height, header.width)
+            (
+                header.height,
+                header.width,
+            )
         )
 
         image = (
-            image.astype(np.uint32) * 16
+            image.astype(np.uint32)
+            * 16
         ).astype(np.uint16)
 
         return image

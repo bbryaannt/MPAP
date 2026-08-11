@@ -19,14 +19,14 @@ def main():
 
     decoded = decoder.decode(path)
 
-    print("=" * 40)
+    print("=" * 40)      
     print("Decoded Image")
     print("=" * 40)
     print()
 
     print(decoded)
     print()
-
+ 
     print("Shape:        ", decoded.shape)
     print("Data Type:    ", decoded.dtype)
     print("Schema:       ", decoded.schema)
