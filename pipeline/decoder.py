@@ -28,11 +28,23 @@ from pipeline.exceptions import (
     UnsupportedBitDepthError,
 )
 
+from pipeline.pixel_decoder import RPM222XRPixelDecoder
+
 
 class RPM222XRDecoder:
     """
     Decoder for RPM222XR thermal .dat files.
+
+    This class is responsible for:
+    - Detecting the file schema
+    - Reading the file header
+    - Extracting raw pixel bytes
+
+    Pixel decoding is handled by RPM222XRPixelDecoder.
     """
+
+    def __init__(self):
+        self.pixel_decoder = RPM222XRPixelDecoder()
 
     def decode(self, path: str | Path) -> DecodedImage:
         """
@@ -48,25 +60,10 @@ class RPM222XRDecoder:
             header,
         )
 
-        if header.bit_depth == 8:
-
-            image = self._decode_8bit(
-                pixel_bytes,
-                header,
-            )
-
-        elif header.bit_depth == 12:
-
-            image = self._decode_12bit(
-                pixel_bytes,
-                header,
-            )
-
-        else:
-
-            raise UnsupportedBitDepthError(
-                f"Unsupported bit depth: {header.bit_depth}"
-            )
+        image = self.pixel_decoder.decode(
+            pixel_bytes,
+            header,
+        )
 
         return DecodedImage(
             image=image,
@@ -95,17 +92,14 @@ class RPM222XRDecoder:
         """
 
         with path.open("rb") as file:
-
             first_two = file.read(2)
 
         if len(first_two) != 2:
-
             raise CorruptFileError(
                 f"{path.name} is too small to contain a valid RPM222XR file."
             )
 
         if first_two == b"\x00\x00":
-
             return SCHEMA_1
 
         return SCHEMA_0
@@ -130,7 +124,6 @@ class RPM222XRDecoder:
                 )
 
                 if len(raw_header) != SCHEMA_0_HEADER_SIZE:
-
                     raise CorruptFileError(
                         f"{path.name} has an incomplete Schema 0 header."
                     )
@@ -141,7 +134,6 @@ class RPM222XRDecoder:
                 )
 
                 header_size = SCHEMA_0_HEADER_SIZE
-
                 header_length_words = None
 
             # ==========================================================
@@ -155,7 +147,6 @@ class RPM222XRDecoder:
                 )
 
                 if len(fixed_header) != SCHEMA_1_MIN_HEADER_BYTES:
-
                     raise CorruptFileError(
                         f"{path.name} has an incomplete Schema 1 header."
                     )
@@ -188,7 +179,6 @@ class RPM222XRDecoder:
                 )
 
                 if len(raw_header) != header_size:
-
                     raise CorruptFileError(
                         f"{path.name} has an incomplete Schema 1 header."
                     )
@@ -206,7 +196,6 @@ class RPM222XRDecoder:
         # ==============================================================
 
         if bit_depth not in SUPPORTED_BIT_DEPTHS:
-
             raise UnsupportedBitDepthError(
                 f"Unsupported bit depth: {bit_depth}"
             )
@@ -236,113 +225,3 @@ class RPM222XRDecoder:
             file.seek(header.header_size)
 
             return file.read()
-
-    def _decode_8bit(
-        self,
-        pixel_bytes: bytes,
-        header: Header,
-    ):
-        """
-        Decode 8-bit RPM222XR image data.
-        """
-
-        import numpy as np
-
-        image = np.frombuffer(
-            pixel_bytes,
-            dtype=np.uint8,
-        )
-
-        image = image[:header.pixel_count]
-
-        image = image.reshape(
-            (
-                header.height,
-                header.width,
-            )
-        )
-
-        image = (
-            image.astype(np.uint16)
-            * 257
-        )
-
-        return image
-
-    def _decode_12bit(
-        self,
-        pixel_bytes: bytes,
-        header: Header,
-    ):
-        """
-        Decode 12-bit packed RPM222XR image data.
-        """
-
-        import numpy as np
-
-        raw = np.frombuffer(
-            pixel_bytes,
-            dtype=np.uint8,
-        )
-
-        usable_bytes = (
-            len(raw) // 3
-        ) * 3
-
-        raw = raw[:usable_bytes]
-
-        triples = raw.reshape(
-            -1,
-            3,
-        )
-
-        b0 = triples[:, 0].astype(
-            np.uint16
-        )
-
-        b1 = triples[:, 1].astype(
-            np.uint16
-        )
-
-        b2 = triples[:, 2].astype(
-            np.uint16
-        )
-
-        p1 = (
-            b0 << 4
-        ) | (
-            b1 & 0x0F
-        )
-
-        p2 = (
-            b2 << 4
-        ) | (
-            (b1 >> 4) & 0x0F
-        )
-
-        decoded = np.empty(
-            p1.size * 2,
-            dtype=np.uint16,
-        )
-
-        decoded[0::2] = p1
-
-        decoded[1::2] = p2
-
-        decoded = decoded[
-            :header.pixel_count
-        ]
-
-        image = decoded.reshape(
-            (
-                header.height,
-                header.width,
-            )
-        )
-
-        image = (
-            image.astype(np.uint32)
-            * 16
-        ).astype(np.uint16)
-
-        return image
