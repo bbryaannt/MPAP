@@ -12,3 +12,4 @@ from .build import Build
 from .analysis_run import AnalysisRun
 from .decoded_image import DecodedImage
 from .header import Header
+from .melt_pool_result import MeltPoolResult

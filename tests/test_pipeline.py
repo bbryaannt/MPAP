@@ -53,6 +53,14 @@ def main():
     print("  Aspect Ratio:    ", features.aspect_ratio)
     print("  Circularity:     ", features.circularity)
 
+    print()
+    print("Thermal Bands:")
+    print("  Band 1:", result.band_counts.band1)
+    print("  Band 2:", result.band_counts.band2)
+    print("  Band 3:", result.band_counts.band3)
+    print("  Band 4:", result.band_counts.band4)
+    print("  Band 5:", result.band_counts.band5)
+
 
 if __name__ == "__main__":
     main()

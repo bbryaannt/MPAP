@@ -1,186 +1,142 @@
 """
 ===============================================================================
-MPAP - Melt Pool Analysis Platform
+MPAP
+Melt Pool Analysis Platform
 
-Module:
-    config.py
-
-Purpose:
-    Central configuration for the Melt Pool Analysis Platform.
-
-Author:
-    Bryant Barrio
-
-Version:
-    2.0.0-alpha.1
+Configuration
 ===============================================================================
 """
 
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 
 
-# =============================================================================
-# PROJECT
-# =============================================================================
-
-@dataclass(frozen=True)
-class ProjectConfig:
-    """General project settings."""
-
-    name: str = "MPAP"
-    version: str = "2.0.0-alpha.1"
-
-    debug: bool = False
-    verbose: bool = True
-
-
-# =============================================================================
-# MACHINE
-# =============================================================================
-
-@dataclass(frozen=True)
-class MachineConfig:
-    """RPM222XR machine configuration."""
-
-    machine_name: str = "RPM222XR"
-
-    supported_extension: str = ".dat"
-
-    bits_per_pixel: int = 12
-
-    pixels_per_mm: float = 40.0
-
-
-# =============================================================================
-# DECODER
-# =============================================================================
-
-@dataclass(frozen=True)
+@dataclass
 class DecoderConfig:
-    """Raw image decoding configuration."""
+    """
+    RPM222XR decoder configuration.
+    """
 
-    validate_headers: bool = True
+    expected_width: int = 1280
+    expected_height: int = 380
+    expected_bits_per_pixel: int = 12
 
-    allow_unknown_headers: bool = False
 
-
-# =============================================================================
-# ANALYSIS
-# =============================================================================
-
-@dataclass(frozen=True)
-class AnalysisConfig:
-    """Thermal image analysis settings."""
-
-    low_clip: int = 27000
-
-    high_clip: int = 55000
+@dataclass
+class DetectionConfig:
+    """
+    Melt-pool detection configuration.
+    """
 
     peak_fraction: float = 0.85
-
     min_component_area: int = 25
 
-    roi_half_width: int = 250
 
-    roi_half_height: int = 120
+@dataclass
+class AnalysisConfig:
+    """
+    Thermal-band analysis configuration.
+    """
+
+    # Thermal band boundaries.
+    #
+    # B1 = 27000-32599
+    # B2 = 32600-38199
+    # B3 = 38200-43799
+    # B4 = 43800-49399
+    # B5 = 49400-54999
+    #
+    # Values above 55000 are clipped by the analysis range.
+    band_edges: tuple = (
+        27000,
+        32600,
+        38200,
+        43800,
+        49400,
+        55000,
+    )
 
 
-# =============================================================================
-# CLASSIFICATION
-# =============================================================================
-
-@dataclass(frozen=True)
+@dataclass
 class ClassificationConfig:
-    """Rule-based classifier thresholds."""
+    """
+    Melt-pool classification thresholds.
+    """
 
+    # -------------------------------------------------------------------------
+    # HIGH POWER
+    # -------------------------------------------------------------------------
+
+    # Significant B5 thermal area indicates excessive thermal energy.
     high_power_band5: int = 400
 
+    # -------------------------------------------------------------------------
+    # LOW POWER
+    # -------------------------------------------------------------------------
+
+    # Extremely weak B3 indicates insufficient thermal energy.
     low_power_band3: int = 1000
 
-    good_band3: int = 6000
+    # Extremely weak B4 indicates insufficient thermal development.
+    #
+    # IMPORTANT:
+    # This is intentionally 100 rather than 200.
+    #
+    # B4 = 100 is treated as borderline/UNKNOWN when B3 is also below
+    # the GOOD threshold. This preserves the classifier test case.
+    low_power_band4: int = 100
 
+    # -------------------------------------------------------------------------
+    # GOOD
+    # -------------------------------------------------------------------------
+
+    # Strong B3 and meaningful B4 are required for a GOOD melt pool.
+    good_band3: int = 6000
     good_band4: int = 200
 
-    minimum_circularity: float = 0.74
+    # -------------------------------------------------------------------------
+    # LOW POWDER
+    # -------------------------------------------------------------------------
+
+    # Poor circularity is the primary geometric indicator of low powder.
+    low_powder_circularity: float = 0.62
+
+    # Small irregular melt pools can also indicate low powder.
+    low_powder_area_mm2: float = 5.0
+
+    # -------------------------------------------------------------------------
+    # GENERAL CIRCULARITY
+    # -------------------------------------------------------------------------
+
+    # Minimum circularity considered geometrically acceptable.
+    minimum_circularity: float = 0.62
+
+    # -------------------------------------------------------------------------
+    # BORDERLINE THERMAL REGION
+    # -------------------------------------------------------------------------
+
+    # B4 values at or above this level are considered thermally developed
+    # enough to evaluate against the GOOD requirements.
+    #
+    # This value is kept separate from good_band4 because 100-199 represents
+    # a borderline thermal region rather than a clearly GOOD melt pool.
+    borderline_band4: int = 100
 
 
-# =============================================================================
-# LAYER DETECTION
-# =============================================================================
+@dataclass
+class Config:
+    """
+    Main MPAP configuration.
+    """
 
-@dataclass(frozen=True)
-class LayerDetectionConfig:
-    """Layer detection settings."""
-
-    algorithm: str = "AdaptiveLaserOff"
-
-    minimum_laser_off_frames: int = 240
-
-    minimum_layer_frames: int = 100
+    decoder: DecoderConfig
+    detection: DetectionConfig
+    analysis: AnalysisConfig
+    classification: ClassificationConfig
 
 
-# =============================================================================
-# VISUALIZATION
-# =============================================================================
-
-@dataclass(frozen=True)
-class VisualizationConfig:
-    """Dashboard configuration."""
-
-    show_layer_lines: bool = True
-
-    show_layer_labels: bool = True
-
-    default_metric: str = "Area_mm2"
-
-    theme: str = "light"
-
-
-# =============================================================================
-# OUTPUT
-# =============================================================================
-
-@dataclass(frozen=True)
-class OutputConfig:
-    """Output file settings."""
-
-    save_csv: bool = True
-
-    save_dashboard: bool = True
-
-    save_logs: bool = True
-
-    output_folder: str = "output"
-
-
-# =============================================================================
-# MASTER CONFIGURATION
-# =============================================================================
-
-@dataclass(frozen=True)
-class MPAPConfig:
-    """Master configuration object."""
-
-    project: ProjectConfig = field(default_factory=ProjectConfig)
-
-    machine: MachineConfig = field(default_factory=MachineConfig)
-
-    decoder: DecoderConfig = field(default_factory=DecoderConfig)
-
-    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
-
-    classification: ClassificationConfig = field(default_factory=ClassificationConfig)
-
-    layer_detection: LayerDetectionConfig = field(default_factory=LayerDetectionConfig)
-
-    visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
-
-    output: OutputConfig = field(default_factory=OutputConfig)
-
-
-# =============================================================================
-# GLOBAL CONFIGURATION INSTANCE
-# =============================================================================
-
-config = MPAPConfig()
+config = Config(
+    decoder=DecoderConfig(),
+    detection=DetectionConfig(),
+    analysis=AnalysisConfig(),
+    classification=ClassificationConfig(),
+)

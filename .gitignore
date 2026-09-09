@@ -11,3 +11,26 @@ __pycache__/
 
 # VS Code
 .vscode/
+
+# Temporary / backup files
+*.save
+*.bak
+*.tmp
+
+# Archives / generated packages
+*.zip
+
+# MPAP generated analysis outputs
+classification_diagnostic.csv
+layer_trend_analysis.csv
+layer_classification_analysis.csv
+dataset_report.txt
+dataset_summary.csv
+
+# Generated plots
+layer_b3_trend.png
+layer_b4_trend.png
+layer_circularity_trend.png
+layer_classification_trend.png
+circularity_vs_band4.png
+classifier_feature_space.png

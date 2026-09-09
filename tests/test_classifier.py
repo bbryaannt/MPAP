@@ -3,7 +3,7 @@
 MPAP
 Melt Pool Analysis Platform
 
-Melt Pool Classifier Test
+Melt Pool Classifier Tests
 ===============================================================================
 """
 
@@ -11,117 +11,188 @@ from pipeline.classifier import (
     MeltPoolClassification,
     MeltPoolClassifier,
 )
+
 from pipeline.melt_pool_features import MeltPoolFeatures
 
-
-def main():
-
-    classifier = MeltPoolClassifier()
-
-    test_cases = [
-        (
-            "Laser Off",
-            MeltPoolFeatures(
-                area_px=0,
-                area_mm2=0.0,
-                centroid_x=0.0,
-                centroid_y=0.0,
-                bbox_width=0,
-                bbox_height=0,
-                aspect_ratio=0.0,
-                circularity=0.0,
-            ),
-            MeltPoolClassification.LASER_OFF,
-        ),
-        (
-            "Low Powder",
-            MeltPoolFeatures(
-                area_px=1000,
-                area_mm2=0.25,
-                centroid_x=640.0,
-                centroid_y=190.0,
-                bbox_width=40,
-                bbox_height=40,
-                aspect_ratio=1.0,
-                circularity=0.8,
-            ),
-            MeltPoolClassification.LOW_POWDER,
-        ),
-        (
-            "Low Power",
-            MeltPoolFeatures(
-                area_px=20000,
-                area_mm2=12.0,
-                centroid_x=640.0,
-                centroid_y=190.0,
-                bbox_width=120,
-                bbox_height=100,
-                aspect_ratio=1.2,
-                circularity=0.8,
-            ),
-            MeltPoolClassification.LOW_POWER,
-        ),
-        (
-            "Low Powder - Circularity",
-            MeltPoolFeatures(
-                area_px=7000,
-                area_mm2=4.0,
-                centroid_x=640.0,
-                centroid_y=190.0,
-                bbox_width=100,
-                bbox_height=100,
-                aspect_ratio=1.0,
-                circularity=0.20,
-            ),
-            MeltPoolClassification.LOW_POWDER,
-        ),
-        (
-            "Good",
-            MeltPoolFeatures(
-                area_px=7000,
-                area_mm2=4.0,
-                centroid_x=640.0,
-                centroid_y=190.0,
-                bbox_width=100,
-                bbox_height=90,
-                aspect_ratio=1.11,
-                circularity=0.80,
-            ),
-            MeltPoolClassification.GOOD,
-        ),
-    ]
-
-    print("=" * 40)
-    print("Melt Pool Classifier Test")
-    print("=" * 40)
-    print()
-
-    passed = 0
-
-    for name, features, expected in test_cases:
-
-        result = classifier.classify(features)
-
-        if result == expected:
-            status = "PASS"
-            passed += 1
-        else:
-            status = "FAIL"
-
-        print(
-            f"{status}: {name}"
-            f" -> {result.value}"
-            f" (expected {expected.value})"
-        )
-
-    print()
-    print(f"Passed: {passed}/{len(test_cases)}")
-
-    if passed != len(test_cases):
-        raise AssertionError(
-            "One or more classifier tests failed."
-        )
+from models.band_counts import BandCounts
 
 
-if __name__ == "__main__":
-    main()
+classifier = MeltPoolClassifier()
+
+
+def make_features(
+    area_px=1000,
+    area_mm2=5.0,
+    circularity=0.75,
+):
+    return MeltPoolFeatures(
+        area_px=area_px,
+        area_mm2=area_mm2,
+        centroid_x=640.0,
+        centroid_y=190.0,
+        bbox_width=100,
+        bbox_height=100,
+        aspect_ratio=1.0,
+        circularity=circularity,
+    )
+
+
+def make_bands(
+    band3=6000,
+    band4=200,
+    band5=0,
+):
+    return BandCounts(
+        band1=0,
+        band2=0,
+        band3=band3,
+        band4=band4,
+        band5=band5,
+    )
+
+
+def test_laser_off():
+    features = make_features(area_px=0)
+
+    bands = make_bands(
+        band3=0,
+        band4=0,
+        band5=0,
+    )
+
+    result = classifier.classify(features, bands)
+
+    assert result == MeltPoolClassification.LASER_OFF
+
+
+def test_high_power():
+    features = make_features()
+
+    bands = make_bands(
+        band3=7000,
+        band4=500,
+        band5=401,
+    )
+
+    result = classifier.classify(features, bands)
+
+    assert result == MeltPoolClassification.HIGH_POWER
+
+
+def test_low_power_very_low_band3():
+    features = make_features()
+
+    bands = make_bands(
+        band3=999,
+        band4=50,
+        band5=0,
+    )
+
+    result = classifier.classify(features, bands)
+
+    assert result == MeltPoolClassification.LOW_POWER
+
+
+def test_low_power_band3_below_good_threshold():
+    features = make_features()
+
+    bands = make_bands(
+        band3=5000,
+        band4=500,
+        band5=0,
+    )
+
+    result = classifier.classify(features, bands)
+
+    assert result == MeltPoolClassification.LOW_POWER
+
+
+def test_low_power_high_band3_but_band4_below_good_threshold():
+    """
+    Frames with strong B3 but insufficient B4 are LOW_POWER.
+
+    This specifically covers the transition region that previously
+    produced UNKNOWN classifications.
+    """
+
+    features = make_features(
+        circularity=0.69,
+    )
+
+    bands = make_bands(
+        band3=6500,
+        band4=175,
+        band5=0,
+    )
+
+    result = classifier.classify(features, bands)
+
+    assert result == MeltPoolClassification.LOW_POWER
+
+
+def test_low_power_high_band3_band4_at_100():
+    """
+    B4 values at the lower transition threshold are LOW_POWER.
+    """
+
+    features = make_features(
+        circularity=0.70,
+    )
+
+    bands = make_bands(
+        band3=8000,
+        band4=100,
+        band5=0,
+    )
+
+    result = classifier.classify(features, bands)
+
+    assert result == MeltPoolClassification.LOW_POWER
+
+
+def test_low_powder():
+    features = make_features(
+        circularity=0.50,
+    )
+
+    bands = make_bands(
+        band3=7000,
+        band4=250,
+        band5=0,
+    )
+
+    result = classifier.classify(features, bands)
+
+    assert result == MeltPoolClassification.LOW_POWDER
+
+
+def test_good():
+    features = make_features(
+        circularity=0.75,
+    )
+
+    bands = make_bands(
+        band3=7000,
+        band4=250,
+        band5=0,
+    )
+
+    result = classifier.classify(features, bands)
+
+    assert result == MeltPoolClassification.GOOD
+
+
+def test_good_at_minimum_circularity():
+    features = make_features(
+        circularity=0.62,
+    )
+
+    bands = make_bands(
+        band3=6000,
+        band4=200,
+        band5=0,
+    )
+
+    result = classifier.classify(features, bands)
+
+    assert result == MeltPoolClassification.GOOD
