@@ -1,14 +1,16 @@
 """
 ===============================================================================
+
 MPAP
+
 Melt Pool Analysis Platform
 
 RPM222XR Decoder
+
 ===============================================================================
 """
 
 import struct
-
 from pathlib import Path
 
 from models import Header, DecodedImage
@@ -50,7 +52,6 @@ class RPM222XRDecoder:
         """
         Decode an RPM222XR .dat file into a DecodedImage.
         """
-
         path = Path(path)
 
         header = self._read_header(path)
@@ -74,23 +75,19 @@ class RPM222XRDecoder:
         """
         Read only the file header.
         """
-
         return self._read_header(Path(path))
 
     def validate(self, path: str | Path) -> bool:
         """
         Validate that a file has a readable header.
         """
-
         self._read_header(Path(path))
-
         return True
 
     def _detect_schema(self, path: Path) -> int:
         """
         Detect whether the file uses Schema 0 or Schema 1.
         """
-
         with path.open("rb") as file:
             first_two = file.read(2)
 
@@ -108,17 +105,15 @@ class RPM222XRDecoder:
         """
         Read and parse the RPM222XR file header.
         """
-
         schema = self._detect_schema(path)
 
         with path.open("rb") as file:
 
-            # ==========================================================
+            # ==============================================================
             # Schema 0
-            # ==========================================================
+            # ==============================================================
 
             if schema == SCHEMA_0:
-
                 raw_header = file.read(
                     SCHEMA_0_HEADER_SIZE
                 )
@@ -128,7 +123,12 @@ class RPM222XRDecoder:
                         f"{path.name} has an incomplete Schema 0 header."
                     )
 
-                height, width, bit_depth, pixel_format = struct.unpack(
+                (
+                    height,
+                    width,
+                    bit_depth,
+                    pixel_format,
+                ) = struct.unpack(
                     HEADER_FORMAT,
                     raw_header,
                 )
@@ -136,12 +136,11 @@ class RPM222XRDecoder:
                 header_size = SCHEMA_0_HEADER_SIZE
                 header_length_words = None
 
-            # ==========================================================
+            # ==============================================================
             # Schema 1
-            # ==========================================================
+            # ==============================================================
 
             elif schema == SCHEMA_1:
-
                 fixed_header = file.read(
                     SCHEMA_1_MIN_HEADER_BYTES
                 )
@@ -186,7 +185,6 @@ class RPM222XRDecoder:
                 height = aoi_bottom - aoi_top
 
             else:
-
                 raise UnsupportedSchemaError(
                     f"Unsupported schema: {schema}"
                 )
@@ -219,9 +217,6 @@ class RPM222XRDecoder:
         """
         Read only the raw pixel bytes from an RPM222XR file.
         """
-
         with path.open("rb") as file:
-
             file.seek(header.header_size)
-
             return file.read()

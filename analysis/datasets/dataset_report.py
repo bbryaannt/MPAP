@@ -89,6 +89,17 @@ def safe_mean(series):
     return float(series.mean())
 
 
+def read_csv_or_empty(path):
+    """Read a CSV, returning an empty DataFrame for an empty file."""
+    if not path.exists() or path.stat().st_size == 0:
+        return pd.DataFrame()
+
+    try:
+        return pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
+
+
 def determine_layer_status(row):
     classifications = {
         "GOOD": float(row.get("GOOD_Percent", 0.0)),
@@ -269,6 +280,276 @@ def find_first_defect_layer(layer_df):
     return None
 
 
+
+# =============================================================================
+# DATASET DIAGNOSIS
+# =============================================================================
+
+def determine_initial_condition(layer_df, diagnostic_df):
+    """Return the first meaningful condition observed in the dataset."""
+    if not diagnostic_df.empty:
+        active_df = diagnostic_df[
+            diagnostic_df["Classification"] != "LASER_OFF"
+        ]
+
+        if active_df.empty:
+            return "LASER_OFF"
+
+    if layer_df.empty:
+        return "UNKNOWN"
+
+    return str(layer_df.iloc[0]["Layer_Status"])
+
+
+def determine_final_condition(layer_df, diagnostic_df):
+    """Return the final meaningful condition observed in the dataset."""
+    if not diagnostic_df.empty:
+        active_df = diagnostic_df[
+            diagnostic_df["Classification"] != "LASER_OFF"
+        ]
+
+        if active_df.empty:
+            return "LASER_OFF"
+
+    if layer_df.empty:
+        return "UNKNOWN"
+
+    return str(layer_df.iloc[-1]["Layer_Status"])
+
+
+def determine_process_behavior(layer_df):
+    """Describe whether layer classification behavior is stable or evolving."""
+    if layer_df.empty:
+        return "NO_ACTIVE_PROCESS"
+
+    statuses = [
+        str(status)
+        for status in layer_df["Layer_Status"].tolist()
+    ]
+
+    unique_statuses = list(dict.fromkeys(statuses))
+
+    if len(unique_statuses) <= 1:
+        return "STABLE"
+
+    return "EVOLVING"
+
+
+def determine_process_direction(
+    layer_df,
+    area_trend,
+    circularity_trend,
+    band3_trend,
+    band4_trend,
+    band5_trend,
+):
+    """Determine overall process direction from classification progression."""
+    if layer_df.empty:
+        return "UNKNOWN"
+
+    statuses = [str(status) for status in layer_df["Layer_Status"].tolist()]
+
+    if not statuses:
+        return "UNKNOWN"
+
+    first_status = statuses[0]
+    last_status = statuses[-1]
+
+    # If the classification remains unchanged, the process is stable.
+    if first_status == last_status and len(set(statuses)) == 1:
+        return "STABLE"
+
+    defect_statuses = set(DEFECT_CLASSIFICATIONS)
+
+    if first_status == "GOOD" and last_status in defect_statuses:
+        return "DETERIORATING"
+
+    if first_status in defect_statuses and last_status == "GOOD":
+        return "IMPROVING"
+
+    first_index = (
+        ORDERED_CLASSIFICATIONS.index(first_status)
+        if first_status in ORDERED_CLASSIFICATIONS
+        else None
+    )
+    last_index = (
+        ORDERED_CLASSIFICATIONS.index(last_status)
+        if last_status in ORDERED_CLASSIFICATIONS
+        else None
+    )
+
+    if first_index is not None and last_index is not None:
+        if last_index > first_index:
+            return "DETERIORATING"
+        if last_index < first_index:
+            return "IMPROVING"
+
+    worsening_signals = 0
+    improving_signals = 0
+
+    if circularity_trend == "DOWN":
+        worsening_signals += 1
+    elif circularity_trend == "UP":
+        improving_signals += 1
+
+    if band4_trend == "DOWN":
+        worsening_signals += 1
+    elif band4_trend == "UP":
+        improving_signals += 1
+
+    if band5_trend == "UP":
+        worsening_signals += 1
+    elif band5_trend == "DOWN":
+        improving_signals += 1
+
+    if area_trend == "DOWN":
+        worsening_signals += 1
+    elif area_trend == "UP":
+        improving_signals += 1
+
+    if band3_trend == "DOWN":
+        worsening_signals += 1
+    elif band3_trend == "UP":
+        improving_signals += 1
+
+    if worsening_signals > improving_signals:
+        return "DETERIORATING"
+
+    if improving_signals > worsening_signals:
+        return "IMPROVING"
+
+    if len(set(statuses)) > 1:
+        return "MIXED"
+
+    return "STABLE"
+
+def determine_dominant_defect(layer_df):
+    """Return the most common confirmed defect layer classification."""
+    if layer_df.empty:
+        return "NONE"
+
+    defect_df = layer_df[
+        layer_df["Layer_Status"].isin(DEFECT_CLASSIFICATIONS)
+    ]
+
+    if defect_df.empty:
+        return "NONE"
+
+    counts = defect_df["Layer_Status"].value_counts()
+
+    return str(counts.index[0])
+
+
+def find_first_abnormal_layer(layer_df):
+    """Return the first layer that is not classified as GOOD."""
+    if layer_df.empty:
+        return None
+
+    for _, row in layer_df.iterrows():
+        status = str(row["Layer_Status"])
+
+        if status != "GOOD":
+            return int(row["Layer"])
+
+    return None
+
+
+def find_first_confirmed_defect_layer(layer_df):
+    """Return the first layer with a confirmed defect classification."""
+    if layer_df.empty:
+        return None
+
+    for _, row in layer_df.iterrows():
+        status = str(row["Layer_Status"])
+
+        if status in DEFECT_CLASSIFICATIONS:
+            return int(row["Layer"])
+
+    return None
+
+
+def generate_diagnosis_text(
+    initial_condition,
+    final_condition,
+    process_behavior,
+    process_direction,
+    dominant_defect,
+    first_abnormal_layer,
+    first_confirmed_defect_layer,
+    transitions,
+    area_trend,
+    circularity_trend,
+    band3_trend,
+    band4_trend,
+    band5_trend,
+):
+    """Generate a concise plain-English dataset diagnosis."""
+    if process_behavior == "NO_ACTIVE_PROCESS":
+        return (
+            "No active laser process was detected, so a process "
+            "evolution diagnosis could not be established."
+        )
+
+    parts = [
+        f"The build began in {initial_condition} condition and ended "
+        f"in {final_condition} condition."
+    ]
+
+    if process_direction == "DETERIORATING":
+        parts.append(
+            "The observed process behavior indicates deterioration."
+        )
+    elif process_direction == "IMPROVING":
+        parts.append(
+            "The observed process behavior indicates improvement."
+        )
+    elif process_direction == "STABLE":
+        parts.append(
+            "The observed process behavior remained stable."
+        )
+    else:
+        parts.append(
+            "The observed process behavior was mixed."
+        )
+
+    if dominant_defect != "NONE":
+        parts.append(
+            f"The most common confirmed defect classification was "
+            f"{dominant_defect}."
+        )
+    else:
+        parts.append(
+            "No confirmed defect classification dominated the build."
+        )
+
+    if first_abnormal_layer is not None:
+        parts.append(
+            f"The first abnormal layer was Layer {first_abnormal_layer}."
+        )
+
+    if first_confirmed_defect_layer is not None:
+        parts.append(
+            f"The first confirmed defect occurred at "
+            f"Layer {first_confirmed_defect_layer}."
+        )
+
+    parts.append(
+        f"{len(transitions)} layer-level classification changes "
+        f"were observed."
+    )
+
+    parts.append(
+        "Observed metric trends: "
+        f"area {area_trend.lower()}, "
+        f"circularity {circularity_trend.lower()}, "
+        f"Band 3 {band3_trend.lower()}, "
+        f"Band 4 {band4_trend.lower()}, "
+        f"Band 5 {band5_trend.lower()}."
+    )
+
+    return " ".join(parts)
+
+
 # =============================================================================
 # ARGUMENTS
 # =============================================================================
@@ -349,19 +630,12 @@ diagnostic_df = diagnostic_df.sort_values(
 ).reset_index(drop=True)
 
 
-def safe_read_csv(path):
-    """Read a CSV if it exists and contains data; otherwise return an empty DataFrame."""
-    if not path.exists():
-        return pd.DataFrame()
-
-    try:
-        return pd.read_csv(path)
-    except pd.errors.EmptyDataError:
-        return pd.DataFrame()
+layer_df = read_csv_or_empty(
+    LAYER_TREND_CSV
+)
 
 
-layer_df = safe_read_csv(LAYER_TREND_CSV)
-layer_classification_df = safe_read_csv(
+layer_classification_df = read_csv_or_empty(
     LAYER_CLASSIFICATION_CSV
 )
 
@@ -601,6 +875,57 @@ first_defect_layer = find_first_defect_layer(
     layer_df
 )
 
+first_abnormal_layer = find_first_abnormal_layer(
+    layer_df
+)
+
+first_confirmed_defect_layer = find_first_confirmed_defect_layer(
+    layer_df
+)
+
+initial_condition = determine_initial_condition(
+    layer_df,
+    diagnostic_df,
+)
+
+final_condition = determine_final_condition(
+    layer_df,
+    diagnostic_df,
+)
+
+process_behavior = determine_process_behavior(
+    layer_df,
+)
+
+process_direction = determine_process_direction(
+    layer_df,
+    area_trend,
+    circularity_trend,
+    band3_trend,
+    band4_trend,
+    band5_trend,
+)
+
+dominant_defect = determine_dominant_defect(
+    layer_df,
+)
+
+diagnosis_text = generate_diagnosis_text(
+    initial_condition,
+    final_condition,
+    process_behavior,
+    process_direction,
+    dominant_defect,
+    first_abnormal_layer,
+    first_confirmed_defect_layer,
+    transitions,
+    area_trend,
+    circularity_trend,
+    band3_trend,
+    band4_trend,
+    band5_trend,
+)
+
 
 # =============================================================================
 # BUILD SUMMARY CSV
@@ -645,6 +970,22 @@ summary_rows = [
             if first_defect_layer is not None
             else ""
         ),
+        "Initial_Condition": initial_condition,
+        "Final_Condition": final_condition,
+        "Process_Behavior": process_behavior,
+        "Process_Direction": process_direction,
+        "First_Abnormal_Layer": (
+            first_abnormal_layer
+            if first_abnormal_layer is not None
+            else ""
+        ),
+        "First_Confirmed_Defect_Layer": (
+            first_confirmed_defect_layer
+            if first_confirmed_defect_layer is not None
+            else ""
+        ),
+        "Dominant_Defect": dominant_defect,
+        "Classification_Transitions": len(transitions),
         "Area_Trend": area_trend,
         "Circularity_Trend": circularity_trend,
         "Band3_Trend": band3_trend,
@@ -733,6 +1074,79 @@ else:
         "Assessment: The dataset contains mixed or "
         "uncertain behavior."
     )
+
+
+# =============================================================================
+# DATASET DIAGNOSIS
+# =============================================================================
+
+report_lines.append("")
+
+report_lines.append(
+    "DATASET DIAGNOSIS"
+)
+
+report_lines.append(
+    "-" * 72
+)
+
+report_lines.append(
+    f"Initial condition:           {initial_condition}"
+)
+
+report_lines.append(
+    f"Final condition:             {final_condition}"
+)
+
+report_lines.append(
+    f"Process behavior:            {process_behavior}"
+)
+
+report_lines.append(
+    f"Process direction:           {process_direction}"
+)
+
+if first_abnormal_layer is None:
+
+    report_lines.append(
+        "First abnormal layer:        None"
+    )
+
+else:
+
+    report_lines.append(
+        f"First abnormal layer:        {first_abnormal_layer}"
+    )
+
+if first_confirmed_defect_layer is None:
+
+    report_lines.append(
+        "First confirmed defect:      None"
+    )
+
+else:
+
+    report_lines.append(
+        f"First confirmed defect:      {first_confirmed_defect_layer}"
+    )
+
+report_lines.append(
+    f"Dominant defect:             {dominant_defect}"
+)
+
+report_lines.append(
+    f"Classification transitions:  {len(transitions)}"
+)
+
+report_lines.append("")
+
+report_lines.append(
+    "Diagnosis:"
+)
+
+report_lines.append(
+    diagnosis_text
+)
 
 
 # =============================================================================
