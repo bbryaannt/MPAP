@@ -34,3 +34,68 @@ layer_circularity_trend.png
 layer_classification_trend.png
 circularity_vs_band4.png
 classifier_feature_space.png
+# Private acquisition inputs / machine programs (never publish)
+*.[dD][aA][tT]
+*.[mM][pP][fF]
+*.gcode
+*.nc
+*.tap
+# Generated experiments and local presentation material
+/output/
+/.local-public-audit/
+/visualization/demo/*.png
+/visualization/demo/*validation.json
+/visualization/demo/*manifest.json
+/visualization/demo/DEMO.md
+/visualization/demo/MPAP_DEMO_GUIDE.md
+/visualization/demo/FINAL_REHEARSAL.md
+/visualization/demo/test_final_pass.py
+/visualization/demo/test_replay_source.py
+# Research publication decisions are separate from public source preparation
+/analysis/inspection/research_checkpoint_build1.md
+/analysis/inspection/layer_transition_detector_design.md
+/analysis/inspection/characterize_thermal_off_events.py
+/analysis/inspection/compare_build*_frozen_gcode.py
+/analysis/inspection/validate_build*_thermal_only.py
+/analysis/inspection/validate_live_layer_tracking.py
+/analysis/inspection/inspect_thermal_candidate_separability.py
+/analysis/inspection/inspect_thermal_group_multiplicity.py
+/analysis/inspection/replay_causal_restart_evidence.py
+# Local configuration, credentials, caches and server residue
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+*.pid
+/tmp/
+/temp/
+/demo-inputs/
+/simulation/
+Icon?
+
+# Existing local inspection scripts: retain on disk, exclude from public tree
+/analysis/classification/analyze_distributions.py
+/analysis/inspection/inspect_event_context.py
+/analysis/inspection/inspect_melt_pool.py
+/analysis/inspection/inspect_test4_classification_runs.py
+/analysis/inspection/inspect_test4_progression.py
+/analysis/inspection/inspect_transient_sequence.py
+/analysis/transient_events/analyze_event_context.py
+/analysis/transient_events/analyze_event_durations.py
+/analysis/transient_events/analyze_event_features.py
+/analysis/transient_events/analyze_transient_events.py
+/mpap.py
+/tests/test_band_scope.py
+/tests/test_feature_summary.py
+/tests/test_unknown_exact.py
+/tests/test_unknown_neighbors.py
+
+# Licensing decision deferred; preserve the empty local file only
+/LICENSE
